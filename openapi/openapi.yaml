@@ -1,0 +1,402 @@
+openapi: 3.0.3
+info:
+  title: NotesMD Retrieval API
+  version: 1.0.0
+  description: Read-only note retrieval APIs for ChatGPT Actions backed by notesmd-cli and a local Obsidian vault.
+servers:
+  - url: https://nrs.local
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      security: []
+      summary: Check service, CLI, and vault health
+      responses:
+        "200":
+          description: Healthy or partially healthy service state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+        "503":
+          description: Degraded service state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /openapi.yaml:
+    get:
+      operationId: getOpenAPISpec
+      security: []
+      summary: Retrieve the OpenAPI contract for ChatGPT Actions
+      responses:
+        "200":
+          description: OpenAPI YAML document
+          content:
+            application/yaml:
+              schema:
+                type: string
+  /folders/read:
+    post:
+      operationId: readFolder
+      summary: Read one folder and list its child folders and notes
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FolderReadRequest"
+      responses:
+        "200":
+          description: Folder contents
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FolderReadResponse"
+        "400":
+          $ref: "#/components/responses/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "404":
+          $ref: "#/components/responses/ErrorResponse"
+        "503":
+          $ref: "#/components/responses/ErrorResponse"
+  /notes/list:
+    post:
+      operationId: listNotes
+      summary: List notes in the vault or within a folder
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotesListRequest"
+      responses:
+        "200":
+          description: Note summaries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotesListResponse"
+        "400":
+          $ref: "#/components/responses/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "404":
+          $ref: "#/components/responses/ErrorResponse"
+        "503":
+          $ref: "#/components/responses/ErrorResponse"
+  /notes/read:
+    post:
+      operationId: readNote
+      summary: Read a single note by relative vault path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotePathRequest"
+      responses:
+        "200":
+          description: Full note document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NoteReadResponse"
+        "400":
+          $ref: "#/components/responses/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "404":
+          $ref: "#/components/responses/ErrorResponse"
+        "503":
+          $ref: "#/components/responses/ErrorResponse"
+  /notes/frontmatter:
+    post:
+      operationId: readNoteFrontmatter
+      summary: Read only frontmatter for one note
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotePathRequest"
+      responses:
+        "200":
+          description: Note metadata and frontmatter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NoteFrontmatterResponse"
+        "400":
+          $ref: "#/components/responses/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "404":
+          $ref: "#/components/responses/ErrorResponse"
+        "503":
+          $ref: "#/components/responses/ErrorResponse"
+  /search:
+    post:
+      operationId: searchNotes
+      summary: Search note titles and body content lexically
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SearchRequest"
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResponse"
+        "400":
+          $ref: "#/components/responses/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "404":
+          $ref: "#/components/responses/ErrorResponse"
+        "503":
+          $ref: "#/components/responses/ErrorResponse"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: API key
+  responses:
+    ErrorResponse:
+      description: Error response
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    UnauthorizedResponse:
+      description: Missing or invalid bearer token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/UnauthorizedResponse"
+  schemas:
+    FolderReadRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        path:
+          type: string
+    NotesListRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        folder:
+          type: string
+        recursive:
+          type: boolean
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 500
+    NotePathRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - path
+      properties:
+        path:
+          type: string
+          minLength: 1
+    SearchRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - query
+      properties:
+        query:
+          type: string
+          minLength: 1
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 50
+        folder_prefixes:
+          type: array
+          items:
+            type: string
+    HealthResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - version
+        - cli
+        - vault
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+        version:
+          type: string
+        cli:
+          type: object
+          additionalProperties: false
+          required: [available, version, binary, timeout_ms]
+          properties:
+            available:
+              type: boolean
+            version:
+              type: string
+              nullable: true
+            binary:
+              type: string
+            timeout_ms:
+              type: integer
+        vault:
+          type: object
+          additionalProperties: false
+          required: [name, path, accessible, note_count]
+          properties:
+            name:
+              type: string
+            path:
+              type: string
+            accessible:
+              type: boolean
+            note_count:
+              type: integer
+    NoteSummary:
+      type: object
+      additionalProperties: false
+      required: [path, name, title, folder_path, updated_at, checksum, frontmatter]
+      properties:
+        path:
+          type: string
+        name:
+          type: string
+        title:
+          type: string
+        folder_path:
+          type: string
+        updated_at:
+          type: string
+        checksum:
+          type: string
+        frontmatter:
+          type: object
+    FolderEntry:
+      type: object
+      additionalProperties: false
+      required: [path, name]
+      properties:
+        path:
+          type: string
+        name:
+          type: string
+    FolderReadResponse:
+      type: object
+      additionalProperties: false
+      required: [path, folders, notes]
+      properties:
+        path:
+          type: string
+        folders:
+          type: array
+          items:
+            $ref: "#/components/schemas/FolderEntry"
+        notes:
+          type: array
+          items:
+            $ref: "#/components/schemas/NoteSummary"
+    NotesListResponse:
+      type: object
+      additionalProperties: false
+      required: [folder, recursive, count, items]
+      properties:
+        folder:
+          type: string
+        recursive:
+          type: boolean
+        count:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/NoteSummary"
+    NoteReadResponse:
+      allOf:
+        - $ref: "#/components/schemas/NoteSummary"
+        - type: object
+          additionalProperties: false
+          required: [content, raw_markdown]
+          properties:
+            content:
+              type: string
+            raw_markdown:
+              type: string
+    NoteFrontmatterResponse:
+      $ref: "#/components/schemas/NoteSummary"
+    SearchHit:
+      type: object
+      additionalProperties: false
+      required: [path, name, title, folder_path, updated_at, checksum, line_number, snippet, match_type]
+      properties:
+        path:
+          type: string
+        name:
+          type: string
+        title:
+          type: string
+        folder_path:
+          type: string
+        updated_at:
+          type: string
+        checksum:
+          type: string
+        line_number:
+          type: integer
+        snippet:
+          type: string
+        match_type:
+          type: string
+          enum: [title, content]
+    SearchResponse:
+      type: object
+      additionalProperties: false
+      required: [query, count, items]
+      properties:
+        query:
+          type: string
+        count:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchHit"
+    ErrorDetail:
+      type: object
+      additionalProperties: false
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+    UnauthorizedResponse:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: string
+          enum: [unauthorized]
